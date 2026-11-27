@@ -4,6 +4,7 @@
 // /output/entry.txt. The sealed gate requires 1-160 UTF-8 characters,
 // not only white space.
 
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -32,9 +33,17 @@ mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, ENTRY, "utf8");
 
 // Read-back verify: the file on disk must be byte-identical to the line.
-const written = readFileSync(outPath, "utf8");
+// Compare both the decoded string and the SHA-256 of the raw bytes, so a
+// stray BOM, trailing newline or encoding change cannot slip through.
+const writtenBytes = readFileSync(outPath);
+const written = writtenBytes.toString("utf8");
 if (written !== ENTRY) {
   throw new Error("verify failed: /output/entry.txt differs from the entry line");
+}
+const expectedHash = createHash("sha256").update(ENTRY, "utf8").digest("hex");
+const actualHash = createHash("sha256").update(writtenBytes).digest("hex");
+if (actualHash !== expectedHash) {
+  throw new Error(`verify failed: sha256 ${actualHash} != expected ${expectedHash}`);
 }
 
 console.log(`wrote ${[...ENTRY].length} chars to ${outPath}`);
